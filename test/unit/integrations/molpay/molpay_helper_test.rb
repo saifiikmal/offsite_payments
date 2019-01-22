@@ -36,7 +36,7 @@ class MolpayHelperTest < Test::Unit::TestCase
   end
 
   def test_supported_currency
-    ['MYR', 'USD', 'SGD', 'PHP', 'VND', 'IDR', 'AUD'].each do |cur|
+    ['MYR', 'USD', 'SGD', 'PHP', 'VND', 'IDR', 'AUD', 'CNY', 'THB', 'GBP', 'EUR', 'HKD'].each do |cur|
       @helper.currency cur
       assert_field "cur", cur 
     end
@@ -65,6 +65,11 @@ class MolpayHelperTest < Test::Unit::TestCase
     @helper.return_url "http://www.example.com"
     assert_field "returnurl", "http://www.example.com"
   end
+  
+  def test_notify_url
+    @helper.notify_url "http://www.example.com"
+    assert_field "callbackurl", "http://www.example.com"
+  end
 
   def test_signature
     assert_equal '16d122e1cf4d4fac19f3c839db12b6a5', @helper.form_fields["vcode"]
@@ -72,6 +77,11 @@ class MolpayHelperTest < Test::Unit::TestCase
 
   def test_valid_amount
     @helper.amount = 5.00
+    assert_field "amount", "5.00"
+  end
+
+  def test_valid_integer_amount
+    @helper.amount = 5
     assert_field "amount", "5.00"
   end
 
@@ -83,7 +93,7 @@ class MolpayHelperTest < Test::Unit::TestCase
 
   def test_invalid_amount_below_min_amount
     assert_raise ArgumentError do
-      @helper.amount = 1.00
+      @helper.amount = 0
     end
   end
 

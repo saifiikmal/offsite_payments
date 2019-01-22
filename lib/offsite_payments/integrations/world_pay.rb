@@ -1,3 +1,4 @@
+require 'ipaddr'
 module OffsitePayments #:nodoc:
   module Integrations #:nodoc:
     module WorldPay
@@ -33,8 +34,13 @@ module OffsitePayments #:nodoc:
         mapping :customer, :email => 'email',
                            :phone => 'tel'
 
-        mapping :billing_address, :zip => 'postcode',
-                                  :country  => 'country'
+        mapping :billing_address,
+          :address1 => 'address1',
+          :address2 => 'address2',
+          :city => 'town',
+          :state => 'region',
+          :zip => 'postcode',
+          :country  => 'country'
 
         mapping :description, 'desc'
         mapping :notify_url, 'MC_callback'
@@ -59,16 +65,6 @@ module OffsitePayments #:nodoc:
           elsif OffsitePayments.mode == :always_fail
             add_field('testMode', '101')
           end
-        end
-
-        # WorldPay only supports a single address field so we
-        # have to concat together - lines are separated using &#10;
-        def billing_address(params={})
-          add_field(mappings[:billing_address][:zip], params[:zip])
-          add_field(mappings[:billing_address][:country], lookup_country_code(params[:country]))
-
-          address = [params[:address1], params[:address2], params[:city], params[:state]].compact
-          add_field('address', address.join('&#10;'))
         end
 
         # WorldPay only supports a single name field so we have to concat
@@ -146,11 +142,11 @@ module OffsitePayments #:nodoc:
 
         # the money amount we received in X.2 decimal.
         def gross
-          params['authAmount']
+          params['amount']
         end
 
         def currency
-          params['authCurrency']
+          params['currency']
         end
 
         # Was this a test transaction?
@@ -228,6 +224,12 @@ module OffsitePayments #:nodoc:
         # WorldPay supports the passing of custom parameters through to the callback script
         def custom_params
           return @custom_params ||= read_custom_params
+        end
+
+        # Check if the request comes from IP range 195.35.90.0 – 195.35.91.255
+        def valid_sender?(ip)
+          return true if OffsitePayments.mode == :test 
+          IPAddr.new("195.35.90.0/23").include?(IPAddr.new(ip))
         end
 
         private

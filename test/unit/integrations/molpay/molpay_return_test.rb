@@ -5,7 +5,8 @@ class MolpayReturnTest < Test::Unit::TestCase
 
   def setup
     @secret = 'secretkey'
-    @skey = Digest::MD5.hexdigest("10.00molpaytestorder-10.00#{@secret}")
+    key = Digest::MD5.hexdigest("12345order-10.0000molpaytest10.00MYR")
+    @skey = Digest::MD5.hexdigest("2014-04-04 10:00:00molpaytest#{key}auth123#{@secret}")
     @molpay = Molpay::Return.new(query_data, :credential2 => @secret)
   end
 
@@ -14,9 +15,14 @@ class MolpayReturnTest < Test::Unit::TestCase
   end
 
   def test_failed?
+    Molpay::Notification.any_instance.stubs(:ssl_post).returns('DECLINED')
     molpay = Molpay::Return.new('', :credential2 => @secret)
-
     refute molpay.success?
+  end
+
+  def test_pending?
+    molpay = Molpay::Return.new('status=22', :credential2 => @secret)
+    assert molpay.pending?
   end
 
   private

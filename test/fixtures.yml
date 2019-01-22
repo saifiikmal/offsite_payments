@@ -11,10 +11,6 @@
 # Paste any required PEM certificates after the pem key.
 #
 
-app55:
-  api_key: "QDtACYMCFqtuKOQ22QtCkGR1TzD7XM8i"
-  api_secret: "yT1FRpuusBIQoEBIfIQ8bPStkl7yzdTz"
-
 authorize_net:
   login: X
   password: Y
@@ -104,6 +100,11 @@ cecabank:
 certo_direct:
   login: 1
   password: vP6OwK3
+
+# Fully working credentials
+checkout_finland:
+  merchant: '375917'
+  secret: 'SAIPPUAKAUPPIAS'
 
 conekta:
   key: key_eYvWV7gSDkNYXsmr

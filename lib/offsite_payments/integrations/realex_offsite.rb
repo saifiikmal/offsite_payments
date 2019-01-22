@@ -1,9 +1,9 @@
 module OffsitePayments #:nodoc:
   module Integrations #:nodoc:
-    module Realex
+    module RealexOffsite
       mattr_accessor :production_url
       mattr_accessor :test_url
-      self.production_url = 'https://hpp.realexpayments.com/pay'
+      self.production_url = 'https://epage.payandshop.com/epage.cgi'
       self.test_url       = 'https://hpp.sandbox.realexpayments.com/pay'
 
       def self.helper(order, account, options={})
@@ -71,23 +71,24 @@ module OffsitePayments #:nodoc:
         end
 
         # Realex accepts currency amounts as an integer in the lowest value
-        # e.g. 
+        # e.g.
         #     format_amount(110.56, 'GBP')
         #     => 11056
         def format_amount(amount, currency)
           units = CURRENCY_SPECIAL_MINOR_UNITS[currency] || 2
           multiple = 10**units
-          return (amount.to_f * multiple.to_f).to_i
+          return ((amount || 0).to_d * multiple.to_d).to_i
         end
 
         # Realex returns currency amount as an integer
         def format_amount_as_float(amount, currency)
           units = CURRENCY_SPECIAL_MINOR_UNITS[currency] || 2
           divisor = 10**units
-          return (amount.to_f / divisor.to_f)
+          return ((amount || 0).to_d / divisor.to_d)
         end
 
         def extract_digits(value)
+          return unless value
           value.scan(/\d+/).join('')
         end
 
@@ -117,6 +118,8 @@ module OffsitePayments #:nodoc:
           # Realex does not send back CURRENCY param in response
           # however it does echo any other param so we send it twice.
           add_field 'X-CURRENCY', @currency
+          add_field 'X-TEST', @test.to_s
+          add_field 'ORDER_ID', "#{order}#{@timestamp.to_i}"
         end
 
         def form_fields
@@ -153,7 +156,7 @@ module OffsitePayments #:nodoc:
         # Realex Required Fields
         mapping :currency,         'CURRENCY'
 
-        mapping :order,            'ORDER_ID'
+        mapping :order,            'CHECKOUT_ID'
         mapping :amount,           'AMOUNT'
         mapping :notify_url,       'MERCHANT_RESPONSE_URL'
         mapping :return_url,       'MERCHANT_RETURN_URL'
@@ -175,6 +178,22 @@ module OffsitePayments #:nodoc:
         end
 
         # Required Notification methods to define
+        def acknowledge(authcode = nil)
+          verified?
+        end
+
+        def item_id
+          checkout_id
+        end
+
+        def transaction_id
+          pasref
+        end
+
+        def test?
+          params['X-TEST']
+        end
+
         def status
           if result == '00'
             'Completed'
@@ -204,6 +223,10 @@ module OffsitePayments #:nodoc:
 
         def merchant_id
           params['MERCHANT_ID']
+        end
+
+        def checkout_id
+          params['CHECKOUT_ID']
         end
 
         def order_id

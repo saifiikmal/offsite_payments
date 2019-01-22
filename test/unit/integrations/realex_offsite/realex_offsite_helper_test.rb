@@ -1,6 +1,6 @@
 require 'test_helper'
 
-class RealexHelperTest < Test::Unit::TestCase
+class RealexOffsiteHelperTest < Test::Unit::TestCase
   include OffsitePayments::Integrations
 
   def credentials
@@ -15,7 +15,7 @@ class RealexHelperTest < Test::Unit::TestCase
   end
 
   def setup
-    @helper = Realex::Helper.new('order-500', 'merchant-1234', order_attributes)
+    @helper = RealexOffsite::Helper.new('order-500', 'merchant-1234', order_attributes)
   end
 
   def teardown
@@ -27,7 +27,8 @@ class RealexHelperTest < Test::Unit::TestCase
     assert_field 'ACCOUNT', 'merchant-1234-sub-account'
     assert_field 'CURRENCY', 'GBP'
     assert_field 'AMOUNT', '999'
-    assert_field 'ORDER_ID', 'order-500'
+    assert_field 'CHECKOUT_ID', 'order-500'
+    assert_field 'ORDER_ID', 'order-500' + @helper.fields["TIMESTAMP"]
   end
 
   def test_default_helper_fields
@@ -66,11 +67,18 @@ class RealexHelperTest < Test::Unit::TestCase
   end
 
   def test_format_amount_as_float
-    amount_gbp = @helper.format_amount_as_float(999, 'GBP')
-    assert_in_delta amount_gbp, 9.99, 0.00
+    amount_gbp = @helper.format_amount_as_float(929, 'GBP')
+    assert_in_delta amount_gbp, 9.29, 0.00
 
-    amount_bhd = @helper.format_amount_as_float(999, 'BHD')
-    assert_in_delta amount_bhd, 0.999, 0.00
+    amount_bhd = @helper.format_amount_as_float(929, 'BHD')
+    assert_in_delta amount_bhd, 0.929, 0.00
   end
 
+  def test_format_amount
+    amount_gbp = @helper.format_amount('9.29', 'GBP')
+    assert_equal amount_gbp, 929
+
+    amount_bhd = @helper.format_amount(0.929, 'BHD')
+    assert_equal amount_bhd, 929
+  end
 end

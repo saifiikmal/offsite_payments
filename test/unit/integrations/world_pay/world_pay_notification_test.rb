@@ -19,7 +19,7 @@ class WorldPayNotificationTest < Test::Unit::TestCase
   end
 
   def test_compositions
-    assert_equal Money.new(500, 'GBP'), @world_pay.amount
+    assert_equal Money.from_amount(5.00, 'GBP'), @world_pay.amount
   end
 
   def test_extra_accessors
@@ -65,11 +65,19 @@ class WorldPayNotificationTest < Test::Unit::TestCase
     assert_equal 'Custom Value 3', notification.custom_params[:custom_3]
   end
 
+  def test_valid_sender
+    OffsitePayments.mode = :production
+    assert @world_pay.valid_sender?('195.35.90.0')
+    assert @world_pay.valid_sender?('195.35.90.11')
+    assert @world_pay.valid_sender?('195.35.91.255')
+    refute @world_pay.valid_sender?('195.35.89.255')
+    refute @world_pay.valid_sender?('195.35.92.0')
+  end
 
   private
 
   def http_raw_data
-    "transId=1234123412341234&transStatus=Y&currency=GBP&transTime=1167609600000&testMode=100&authAmount=5.00&cartId=1&authCurrency=GBP&callbackPW=password&countryMatch=Y&AVS=2222&cardType=Mastercard&name=Andrew White&address=1 Nowhere Close&postcode=CV1 1AA&country=GB&tel=024 7699 9999&fax=024 7699 9999&email=andyw@example.com"
+    "transId=1234123412341234&transStatus=Y&currency=GBP&transTime=1167609600000&testMode=100&amount=5.00&authAmount=5.00&cartId=1&authCurrency=GBP&callbackPW=password&countryMatch=Y&AVS=2222&cardType=Mastercard&name=Andrew White&address=1 Nowhere Close&postcode=CV1 1AA&country=GB&tel=024 7699 9999&fax=024 7699 9999&email=andyw@example.com"
   end
 
 end

@@ -24,7 +24,11 @@ class SagePayFormHelperTest < Test::Unit::TestCase
     assert_equal 5, @helper.fields.size
     assert_field 'Vendor', 'cody@example.com'
     assert_field 'Amount', '5.00'
-    assert_field 'VendorTxCode', 'order-500'
+    assert_field 'VendorTxCode', "order-500-#{@helper.identifier}"
+  end
+
+  def test_identifier_should_only_contain_digits
+    assert_match /^[0-9]*$/, @helper.identifier
   end
 
   def test_customer_fields
@@ -262,6 +266,20 @@ class SagePayFormHelperTest < Test::Unit::TestCase
     @helper.form_fields
 
     assert_false @helper.fields['ReferrerID']
+  end
+
+  def test_form_fields_does_not_contain_locale
+    @helper.add_field(:locale, 'en')
+
+    refute @helper.form_fields.key?('locale')
+  end
+
+  def test_encrypted_fields_do_not_contain_locale
+    @helper.add_field(:locale, 'en')
+
+    with_crypt_plaintext do |plain|
+      refute plain.include?('locale')
+    end
   end
 
   private

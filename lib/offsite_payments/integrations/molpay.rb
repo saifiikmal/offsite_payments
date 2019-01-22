@@ -1,69 +1,43 @@
 module OffsitePayments #:nodoc:
   module Integrations #:nodoc:
     module Molpay
+      mattr_accessor :acknowledge_url
+      self.acknowledge_url = 'https://www.onlinepayment.com.my/MOLPay/API/chkstat/returnipn.php'
 
-      mattr_accessor :acknowledge_url 
-
-      self.acknowledge_url = 'https://www.onlinepayment.com.my/MOLPay/API/chkstat/returnipn.php' 
-
-      def self.notification(post)
-        Notification.new(post)
+      def self.notification(post, options = {})
+        Notification.new(post, options)
       end
 
       def self.return(query_string, options={})
         Return.new(query_string, options)
       end
 
-      # Example.
-      #
-      #  (Optional Parameter) = channel //will generate URL to go directly to specific channel, e.g maybank2u, cimb 
+      #  (Optional Parameter) = channel //will generate URL to go directly to specific channel, e.g maybank2u, cimb
       #  Please refer MOLPay API spec for the channel routing
-      #
-      #  payment_service_for('ORDER_ID', 'MOLPAY_MERCHANT_ID', :service => :molpay,  :amount => 1.01, :currency => 'MYR', :credential2 => 'MOLPAY_VERIFICATION_KEY', :channel => 'maybank2u.php') do |service|
-      #
-      #    service.customer :name              => 'Your Name',
-      #                     :email             => 'name@molpay.com',
-      #                     :phone             => '60355218438'
-      #
-      #    service.description = "Payment for Item 001"
-      #
-      #    service.country = "MY"
-      #
-      #    service.language = "en"
-      #
-      #    service.return_url = 'http://yourstore.com/return'
-      #
-      # end
-      #
       class Helper < OffsitePayments::Helper
         include ActiveUtils::RequiresParameters
-        
-        #Currencies supported (ISO)
-        #MYR, USD, SGD, PHP, VND, IDR, AUD
 
-        SUPPORTED_CURRENCIES = ['MYR', 'USD', 'SGD', 'PHP', 'VND', 'IDR', 'AUD']
+        SUPPORTED_CURRENCIES = ['MYR', 'USD', 'SGD', 'PHP', 'VND', 'IDR', 'AUD', 'CNY', 'THB', 'GBP', 'EUR', 'HKD']
 
-        #Languages supported 
-        #en English (default)
-        #cn Simplified Chinese
+        # Defaults to en
         SUPPORTED_LANGUAGES = ['en', 'cn']
 
         SERVICE_URL = 'https://www.onlinepayment.com.my/MOLPay/pay/'.freeze
 
-        mapping :account, 'merchantid'
-        mapping :amount, 'amount'
-        mapping :order, 'orderid'
-        mapping :customer, :name  => 'bill_name',
-                           :email => 'bill_email',
-                           :phone => 'bill_mobile'
+        mapping :account,             'merchantid'
+        mapping :amount,              'amount'
+        mapping :order,               'orderid'
+        mapping :customer, :name  =>  'bill_name',
+                           :email =>  'bill_email',
+                           :phone =>  'bill_mobile'
 
-        mapping :description, 'bill_desc'
-        mapping :language, 'langcode'
-        mapping :country, 'country'
-        mapping :currency, 'cur'
-        mapping :return_url, 'returnurl'
-        mapping :signature, 'vcode'
-
+        mapping :description,         'bill_desc'
+        mapping :language,            'langcode'
+        mapping :country,             'country'
+        mapping :currency,            'cur'
+        mapping :return_url,          'returnurl'
+        mapping :notify_url,          'callbackurl'
+        mapping :signature,           'vcode'
 
         attr_reader :amount_in_cents, :verify_key, :channel
 
@@ -87,9 +61,8 @@ module OffsitePayments #:nodoc:
         end
 
         def amount=(money)
-          #Molpay minimum amount is 1.01
-          if money.is_a?(String) or money.to_f < 1.01
-            raise ArgumentError, "money amount must be either a Money object or a positive integer."
+          unless money > 0
+            raise ArgumentError, "amount must be greater than $0.00."
           end
           add_field mappings[:amount], sprintf("%.2f", money.to_f)
         end
@@ -104,7 +77,6 @@ module OffsitePayments #:nodoc:
           add_field mappings[:language], lang
         end
 
-
         private
 
         def signature
@@ -112,27 +84,19 @@ module OffsitePayments #:nodoc:
         end
       end
 
-      # Example
-      # ========
-      #
-      # notification = Molpay::Notification.new(request.raw_post, options = {:credential2 => "SECRET_KEY"})
-      #
-      # @order = Order.find(notification.item_id)
-      #
-      # begin
-      #   if notification.acknowledge
-      #     @order.status = 'success'
-      #     redirect_to @order
-      #   else
-      #     @order.status = 'failed'
-      #     render :text => "Failed Transaction"
-      #   end
-      # ensure
-      #   @order.save
-      # end
-
       class Notification < OffsitePayments::Notification
         include ActiveUtils::PostsData
+
+        def status
+          case params['status']
+            when '00'
+              'Completed'
+            when '11'
+              'Failed'
+            when '22'
+              'Pending'
+          end
+        end
 
         def complete?
           status == 'Completed'
@@ -172,7 +136,7 @@ module OffsitePayments #:nodoc:
           params['appcode']
         end
 
-        def error_code  
+        def error_code
           params['error_code']
         end
 
@@ -188,46 +152,29 @@ module OffsitePayments #:nodoc:
           gross.blank? && auth_code.blank? && error_code.blank? && error_desc.blank? && security_key.blank?
         end
 
-        def status
-          params['status'] == '00' ? 'Completed' : 'Failed' 
+        def status_orig
+          params['status']
         end
 
-        # Acknowledge the transaction to Molpay. This method has to be called after a new
-        # apc arrives. Molpay will verify that all the information we received are correct
-        #
-        # Example:
-        #
-        #   def ipn
-        #     notify = MolpayNotification.new(request.raw_post)
-        #
-        #     if notify.acknowledge
-        #       ... process order ... if notify.complete?
-        #     else
-        #       ... log possible hacking attempt ...
-        #     end
         def acknowledge(authcode = nil)
-
-          payload =  raw + '&treq=1'
-
-          #this is to notify MOLPay that return has been received
+          payload = raw + '&treq=1'
           ssl_post(Molpay.acknowledge_url, payload,
             'Content-Length' => "#{payload.size}",
             'User-Agent'     => "Shopify/OffsitePayments"
           )
 
           status == 'Completed' && security_key == generate_signature
-          
         end
 
         protected
 
         def generate_signature
-          Digest::MD5.hexdigest("#{gross}#{account}#{item_id}#{@options[:credential2]}")
-        end 
+          key0 = Digest::MD5.hexdigest("#{transaction_id}#{item_id}#{status_orig}#{account}#{gross}#{currency}")
+          Digest::MD5.hexdigest("#{received_at}#{account}#{key0}#{auth_code}#{@options[:credential2]}")
+        end
       end
 
       class Return < OffsitePayments::Return
-
         def initialize(query_string, options = {})
           super
           @notification = Notification.new(query_string, options)
@@ -236,8 +183,11 @@ module OffsitePayments #:nodoc:
         def success?
           @notification.acknowledge
         end
-      end
 
+        def pending?
+          @notification.status == 'Pending'
+        end
+      end
     end
   end
 end

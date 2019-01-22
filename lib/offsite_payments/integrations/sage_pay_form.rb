@@ -69,13 +69,19 @@ module OffsitePayments #:nodoc:
       class Helper < OffsitePayments::Helper
         include Encryption
 
+        attr_reader :identifier
+
+        def initialize(order, account, options={})
+          super
+          @identifier = rand(0..99999).to_s.rjust(5, '0')
+          add_field 'VendorTxCode', "#{order}-#{@identifier}"
+        end
+
         mapping :credential2, 'EncryptKey'
 
         mapping :account, 'Vendor'
         mapping :amount, 'Amount'
         mapping :currency, 'Currency'
-
-        mapping :order, 'VendorTxCode'
 
         mapping :customer,
           :first_name => 'BillingFirstnames',
@@ -121,6 +127,8 @@ module OffsitePayments #:nodoc:
         end
 
         def form_fields
+          fields.delete('locale')
+
           map_billing_address_to_shipping_address unless @shipping_address_set
 
           fields['DeliveryFirstnames'] ||= fields['BillingFirstnames']
@@ -154,8 +162,8 @@ module OffsitePayments #:nodoc:
           parts = fields.map { |k, v| "#{k}=#{sanitize(k, v)}" unless v.nil? }.compact.shuffle
           parts.unshift(sage_encrypt_salt(key.length, key.length * 2))
           sage_encrypt(parts.join('&'), key)
-        rescue OpenSSL::Cipher::CipherError => e
-          if e.message == 'key length too short'
+        rescue OpenSSL::Cipher::CipherError, ArgumentError => e
+          if e.message == 'key length too short' || e.message == 'key must be 16 bytes'
             raise ActionViewHelperError, 'Invalid encryption key.'
           else
             raise
@@ -246,7 +254,7 @@ module OffsitePayments #:nodoc:
 
         # Vendor-supplied code (:order mapping).
         def item_id
-          params['VendorTxCode']
+          params['VendorTxCode'].rpartition('-').first
         end
 
         # Internal SagePay code, typically "{LONG-UUID}".

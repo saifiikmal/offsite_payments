@@ -22,7 +22,7 @@ class CitrusReturnTest < Test::Unit::TestCase
 
   def test_failure_is_successful
     setup_failed_return
-    assert_equal 'Cancelled', @citrus.status('ORD483', '10.00')
+    assert_equal 'Failed', @citrus.status('ORD483', '10.00')
   end
 
   def test_tampered_is_successful
@@ -32,7 +32,7 @@ class CitrusReturnTest < Test::Unit::TestCase
 
   def test_treat_initial_failures_as_pending
     setup_failed_return
-    assert_equal 'Cancelled', @citrus.notification.status
+    assert_equal 'Failed', @citrus.notification.status
     assert @citrus.cancelled?
   end
 
@@ -44,7 +44,7 @@ class CitrusReturnTest < Test::Unit::TestCase
     assert_equal "Completed", notification.status
     assert_equal "CTX1309180549472058821", notification.transaction_id
     assert_equal "SUCCESS", notification.transaction_status
-    assert_equal "10.00", notification.amount
+    assert_equal Money.from_amount(BigDecimal.new(10), "inr"), notification.amount
     assert_equal "INR", notification.currency
     assert_equal true, notification.invoice_ok?('ORD427')
     assert_equal true, notification.amount_ok?(BigDecimal.new('10.00'))
